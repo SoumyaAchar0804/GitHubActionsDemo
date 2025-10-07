@@ -1,0 +1,45 @@
+name: Build and Upload to JFrog Artifactory
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Upload artifact to JFrog Artifactory
+        uses: jfrog/setup-jfrog-cli@v4
+        with:
+          version: latest
+
+      - name: Configure JFrog CLI
+        run: |
+          jfrog config add artifactory-server \
+            --url ${{ secrets.JFROG_URL }} \
+            --user ${{ secrets.JFROG_USERNAME }} \
+            --password ${{ secrets.JFROG_PASSWORD }} \
+            --interactive=false
+
+      - name: Upload to Artifactory
+        run: |
+          jfrog rt upload "target/*.jar" "libs-release-local/myapp/" \
+            --build-name=my-github-build \
+            --build-number=${{ github.run_number }}
+
+      - name: Publish build info
+        run: |
+          jfrog rt build-publish my-github-build ${{ github.run_number }}
